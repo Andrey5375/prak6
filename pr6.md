@@ -1,8 +1,46 @@
-### Задача 1
-Написать программу на Питоне, которая транслирует граф зависимостей civgraph в makefile в духе примера выше. Для мало знакомых с Питоном используется упрощенный вариант civgraph: civgraph.json.
+# Практическое задание №6. Системы автоматизации сборки
+
+Работа с утилитой Make.
+
+Изучить основы языка утилиты make. Распаковать в созданный каталог [make.zip](make.zip), если у вас в в системе нет make.
+
+Создать приведенный ниже Makefile и проверить его работоспособность.
+
+```
+dress: trousers shoes jacket
+    @echo "All done. Let's go outside!"
+
+jacket: pullover
+    @echo "Putting on jacket."
+
+pullover: shirt
+    @echo "Putting on pullover."
+
+shirt:
+    @echo "Putting on shirt."
+
+trousers: underpants
+    @echo "Putting on trousers."
+
+underpants:
+    @echo "Putting on underpants."
+
+shoes: socks
+    @echo "Putting on shoes."
+
+socks: pullover
+    @echo "Putting on socks."
+```
+
+Визуализировать файл [civgraph.txt](civgraph.txt).
+
+## Задача 1
+
+Написать программу на Питоне, которая транслирует граф зависимостей civgraph в makefile в духе примера выше. Для мало знакомых с Питоном используется упрощенный вариант civgraph: [civgraph.json](civgraph.json).
 
 Пример:
 
+```
 > make mathematics
 mining
 bronze_working
@@ -20,169 +58,211 @@ early_empire
 mysticism
 drama_poetry
 mathematics
+```
 
-```bash
+## Решение:
+
+```Python
 import json
 
-# Загрузка графа из JSON файла
-def load_civgraph(file):
-    with open(file, 'r') as f:
-        return json.load(f)
+def parse_civgraph(civgraph_file):
+    # Чтение JSON-файла
+    with open(civgraph_file, 'r') as file:
+        data = json.load(file)
 
-# Функция для генерации Makefile
-def generate_makefile(civgraph, target):
-    visited = set()  # Для отслеживания посещенных задач
-    result = []
+    return data
 
-    # Рекурсивная функция обхода зависимостей
-    def visit(tech):
-        if tech in visited:
-            return
-        visited.add(tech)
-        for dep in civgraph.get(tech, []):
-            visit(dep)
-        result.append(tech)
+def generate_makefile(data, output_file):
+    with open(output_file, 'w') as file:
+        for target, dependencies in data.items():
+            # Формируем правило для Makefile
+            dep_str = " ".join(dependencies) if dependencies else ""
+            file.write(f"{target}: {dep_str}\n")
+            file.write(f"\t@echo {target}\n\n")  # Простое действие для примера
 
-    # Посещаем целевую технологию
-    visit(target)
+def main():
+    civgraph_file = "civgraph.json"  # Имя файла с графом зависимостей
+    output_file = "Makefile"  # Имя итогового Makefile
 
-    # Печатаем задачи в порядке их выполнения
-    for task in result:
-        print(task)
+    # Чтение данных из civgraph.json
+    data = parse_civgraph(civgraph_file)
 
-if __name__ == '__main__':
-    civgraph = load_civgraph('civgraph.json')
-    target = input('Enter the target technology: ')  # Например, mathematics
-    generate_makefile(civgraph, target)
+    # Генерация Makefile
+    generate_makefile(data, output_file)
+    print(f"Makefile был сгенерирован в {output_file}")
+
+if __name__ == "__main__":
+    main()
 ```
 
-Вывод
-```bash
-> python3 civ_to_make.py
-Enter the target technology: mathematics
-mining
-bronze_working
-sailing
-astrology
-celestial_navigation
-pottery
-writing
-code_of_laws
-currency
-irrigation
-masonry
-early_empire
-mysticism
-drama_poetry
-mathematics
-```
+## Результат:
 
-### Задача 2
+![image](https://github.com/user-attachments/assets/21070e62-e08a-4838-8556-5768d234efdd)
+
+## Задача 2
+
 Реализовать вариант трансляции, при котором повторный запуск make не выводит для civgraph на экран уже выполненные "задачи".
 
-```bash
+## Решение:
+
+```Python
 import json
 import os
 
-# Файл для сохранения выполненных задач
-COMPLETED_TASKS_FILE = "completed_tasks.txt"
+# Файл для сохранения завершенных задач
+TASKS_FILE = "my_task2.txt"
 
-# Загрузка списка выполненных задач из файла
-def load_completed_tasks():
-    if os.path.exists(COMPLETED_TASKS_FILE):
-        with open(COMPLETED_TASKS_FILE, 'r') as f:
+# Загрузка списка завершенных задач из файла
+def load_tasks():
+    if os.path.exists(TASKS_FILE):
+        with open(TASKS_FILE, 'r') as f:
             return set(f.read().splitlines())
     return set()
 
-# Сохранение выполненных задач в файл
-def save_completed_tasks(completed_tasks):
-    with open(COMPLETED_TASKS_FILE, 'w') as f:
-        f.write('\n'.join(completed_tasks))
+# Сохранение завершенных задач в файл
+def save_tasks(tasks):
+    with open(TASKS_FILE, 'w') as f:
+        f.write('\n'.join(tasks))
+
+# Загрузка графа зависимостей из JSON-файла
+def load_dependency_graph(filename):
+    try:
+        with open(filename, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Ошибка при загрузке файла {filename}: {e}")
+        return {}
 
 # Функция генерации Makefile с проверкой на уже выполненные задачи
-def generate_makefile(civgraph, target):
-    visited = set()
-    result = []
-    completed_tasks = load_completed_tasks()
+def generate_makefile(dependency_graph, target_task):
+    visited_tasks = set()
+    tasks_to_process = []
+    completed_tasks = load_tasks()
 
-    def visit(tech):
-        if tech in visited or tech in completed_tasks:
+    def process_task(task):
+        if task in visited_tasks or task in completed_tasks:
             return
-        visited.add(tech)
-        for dep in civgraph.get(tech, []):
-            visit(dep)
-        result.append(tech)
+        visited_tasks.add(task)
+        for dependency in dependency_graph.get(task, []):
+            process_task(dependency)
+        tasks_to_process.append(task)
 
-    visit(target)
+    process_task(target_task)
 
-    for task in result:
-        if task not in completed_tasks:
-            print(task)
-            completed_tasks.add(task)
+    if not tasks_to_process:
+        print("Все задачи уже были выполнены.")
+    else:
+        for task in tasks_to_process:
+            if task not in completed_tasks:
+                print(f"{task}")
+                completed_tasks.add(task)
 
-    save_completed_tasks(completed_tasks)
+        save_tasks(completed_tasks)
 
 if __name__ == '__main__':
-    civgraph = load_civgraph('civgraph.json')
-    target = input('Enter the target technology: ')
-    generate_makefile(civgraph, target)
+    # Загружаем граф зависимостей из файла
+    dependency_graph = load_dependency_graph('civgraph.json')
+
+    if not dependency_graph:
+        print("Не удалось загрузить граф зависимостей. Программа завершена.")
+    else:
+        target_task = input('>make ')
+        generate_makefile(dependency_graph, target_task)
 ```
 
+## Результат:
 
-### Задача 3
+![image](https://github.com/user-attachments/assets/bf12a24a-0eee-4323-87dd-3962e712a543)
+
+## Задача 3
+
 Добавить цель clean, не забыв и про "животное".
 
-```bash 
+## Решение:
+
+```Python
 import json
 import os
 
-COMPLETED_TASKS_FILE = "completed_tasks.txt"
+# Файл для сохранения завершенных задач
+TASKS_FILE = "my_task3.txt"
 
-def load_completed_tasks():
-    if os.path.exists(COMPLETED_TASKS_FILE):
-        with open(COMPLETED_TASKS_FILE, 'r') as f:
+# Загрузка списка завершенных задач из файла
+def load_tasks():
+    if os.path.exists(TASKS_FILE):
+        with open(TASKS_FILE, 'r') as f:
             return set(f.read().splitlines())
     return set()
 
-def save_completed_tasks(completed_tasks):
-    with open(COMPLETED_TASKS_FILE, 'w') as f:
-        f.write('\n'.join(completed_tasks))
+# Сохранение завершенных задач в файл
+def save_tasks(tasks):
+    with open(TASKS_FILE, 'w') as f:
+        f.write('\n'.join(tasks))
 
-def clean():
-    if os.path.exists(COMPLETED_TASKS_FILE):
-        os.remove(COMPLETED_TASKS_FILE)
-        print("Cleaned completed tasks.")
+# Загрузка графа зависимостей из JSON-файла
+def load_dependency_graph(filename):
+    try:
+        with open(filename, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Ошибка при загрузке файла {filename}: {e}")
+        return {}
 
-def generate_makefile(civgraph, target):
-    visited = set()
-    result = []
-    completed_tasks = load_completed_tasks()
+# Функция генерации Makefile с проверкой на уже выполненные задачи
+def generate_makefile(dependency_graph, target_task):
+    visited_tasks = set()
+    tasks_to_process = []
+    completed_tasks = load_tasks()
 
-    def visit(tech):
-        if tech in visited or tech in completed_tasks:
+    def process_task(task):
+        if task in visited_tasks or task in completed_tasks:
             return
-        visited.add(tech)
-        for dep in civgraph.get(tech, []):
-            visit(dep)
-        result.append(tech)
+        visited_tasks.add(task)
+        for dependency in dependency_graph.get(task, []):
+            process_task(dependency)
+        tasks_to_process.append(task)
 
-    visit(target)
+    process_task(target_task)
 
-    for task in result:
-        if task not in completed_tasks:
-            print(task)
-            completed_tasks.add(task)
+    if not tasks_to_process:
+        print("Все задачи уже были выполнены.")
+    else:
+        for task in tasks_to_process:
+            if task not in completed_tasks:
+                print(f"{task}")
+                completed_tasks.add(task)
 
-    save_completed_tasks(completed_tasks)
+        save_tasks(completed_tasks)
+
+# Функция для очистки задач
+def clean():
+    if os.path.exists(TASKS_FILE):
+        os.remove(TASKS_FILE)
+        print(f"Файл с завершенными задачами {TASKS_FILE} удален.")
+    else:
+        print("Файл с завершенными задачами не найден. Нечего очищать.")
 
 if __name__ == '__main__':
-    civgraph = load_civgraph('civgraph.json')
-    action = input('Enter action (make/clean): ')
+    # Загружаем граф зависимостей из файла
+    dependency_graph = load_dependency_graph('civgraph.json')
 
-    if action == 'clean':
-        clean()
+    if not dependency_graph:
+        print("Не удалось загрузить граф зависимостей. Программа завершена.")
     else:
-        target = input('Enter the target technology: ')
-        generate_makefile(civgraph, target)
+        action = input('Выберите действие make/clean: ')
+
+        if action == 'make':
+            target_task = input('>make ')
+            generate_makefile(dependency_graph, target_task)
+        elif action == 'clean':
+            clean()
+        else:
+            print("Неизвестное действие. Пожалуйста, введите 'build' или 'clean'.")
 ```
+
+## Результат:
+
+![image](https://github.com/user-attachments/assets/f859e2fe-f19e-4ee9-a5be-d00376455c34)
+
+![image](https://github.com/user-attachments/assets/49079d27-9958-4f4a-be7c-c15d21957e0b)
 
